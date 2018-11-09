@@ -1,0 +1,9 @@
+bin/*
+*.tfstate
+*.tfstate.backup
+crash.log
+.idea
+*.iml
+*.exe
+debug.test
+.terraform/*

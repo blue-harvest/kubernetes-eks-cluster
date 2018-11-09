@@ -1,0 +1,210 @@
+image:
+  name: hashicorp/terraform:0.11.8
+  entrypoint:  ["/bin/sh", "-c"]
+
+variables:
+  CLUSTER_NAME: jfall
+  CLUSTER_DNS: jfall.blueharvest.io
+  CLUSTER_DNS_ZONE: blueharvest.io
+  CLUSTER_ENV: dev
+  CLUSTER_INSTANCE_TYPE: t2.xlarge
+  CLUSTER_MIN_NODES: 6
+  CLUSTER_MAX_NODES: 24
+  HELM_INCUBATOR_REPO: https://kubernetes-charts-incubator.storage.googleapis.com/
+
+stages:
+  - build
+  - deploy
+  - install
+  - uninstall
+  - undeploy
+
+plan:
+  stage: build
+  tags:
+   - blueharvest
+   - terraform
+  before_script:
+   - echo -n $CLUSTER_PRIVATE_KEY > ./ssh/blueharvest_terraform_bastion
+   - echo -n $CLUSTER_PUBLIC_KEY > ./ssh/blueharvest_terraform_bastion.pub
+   - export TF_VAR_cluster_name=$CLUSTER_NAME
+   - export TF_VAR_environment=$CLUSTER_ENV
+   - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
+   - export TF_VAR_asg_min_size=$CLUSTER_MIN_NODES
+   - export TF_VAR_asg_max_size=$CLUSTER_MAX_NODES
+   - echo "Variables -> cluster_name=$TF_VAR_cluster_name environment=$TF_VAR_environment instance_type=$CLUSTER_INSTANCE_TYPE asg_min_size=$CLUSTER_MIN_NODES asg_max_size=$CLUSTER_MAX_NODES"
+  script:
+   - terraform --version
+   - terraform init -force-copy=true -backend-config="key=blueharvest/terraform/eks/$TF_VAR_cluster_name"
+   - terraform validate
+   - terraform plan
+
+apply:
+  stage: deploy
+  when: manual
+  allow_failure: false
+  only:
+    - master
+  dependencies:
+   - plan
+  tags:
+   - blueharvest
+   - terraform
+  before_script:
+   - curl -LO https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
+   - chmod +x aws-iam-authenticator
+   - mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
+   - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl 
+   - chmod +x ./kubectl
+   - mv ./kubectl /usr/local/bin/kubectl
+   - echo -n $CLUSTER_PRIVATE_KEY > ./ssh/blueharvest_terraform_bastion
+   - echo -n $CLUSTER_PUBLIC_KEY > ./ssh/blueharvest_terraform_bastion.pub
+   - export TF_VAR_cluster_name=$CLUSTER_NAME
+   - export TF_VAR_environment=$CLUSTER_ENV
+   - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
+   - export TF_VAR_asg_min_size=$CLUSTER_MIN_NODES
+   - export TF_VAR_asg_max_size=$CLUSTER_MAX_NODES
+   - echo "Variables -> cluster_name=$TF_VAR_cluster_name environment=$TF_VAR_environment instance_type=$CLUSTER_INSTANCE_TYPE asg_min_size=$CLUSTER_MIN_NODES asg_max_size=$CLUSTER_MAX_NODES"
+  script:
+   - terraform --version
+   - terraform init -force-copy=true -backend-config="key=blueharvest/terraform/eks/$TF_VAR_cluster_name"
+   - terraform validate
+   - terraform plan
+   - terraform apply -input=false -auto-approve=true  || true
+   - terraform plan
+  artifacts:
+    name: "configuration"
+    paths:
+      - kubeconfig_$CLUSTER_NAME
+      - ./*.ovpn
+    expire_in: 4 week
+
+install:
+  stage: install
+  retry: 2
+  image:
+    name: dtzar/helm-kubectl:2.10.0
+    entrypoint:  ["/bin/sh", "-c"]
+  dependencies:
+   - apply
+  tags:
+   - blueharvest
+   - terraform
+  when: on_success
+  allow_failure: false
+  only:
+    - master
+  before_script:
+   - sed -i -e "s/CLUSTER_DNS_ZONE/${CLUSTER_DNS_ZONE}/g" ./helm/external-dns/external-dns-intranet.yaml
+   - sed -i -e "s/CLUSTER_DNS_ZONE/${CLUSTER_DNS_ZONE}/g" ./helm/external-dns/external-dns-internet.yaml
+   - sed -i -e "s/CLUSTER_DNS_ZONE/${CLUSTER_DNS_ZONE}/g" ./helm/external-dns/external-dns-nginx.yaml
+   - sed -i -e "s/YOUR_CLUSTER_NAME/${CLUSTER_NAME}/g" ./helm/cluster-autoscaler.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/nginx-ingress.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/nginx-ingress-internal.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/kubernetes-dashboard.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/logging/cerebro.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/logging/kibana.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/monitoring/grafana.yaml
+   - sed -i -e "s/CLUSTER_DNS/${CLUSTER_DNS}/g" ./helm/monitoring/prometheus.yaml
+   - export KUBECONFIG=kubeconfig_$CLUSTER_NAME
+   - wget -O /usr/local/bin/aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
+   - chmod +x /usr/local/bin/aws-iam-authenticator
+   - aws-iam-authenticator help
+
+  script:
+   - kubectl create secret generic route53-config --from-literal=secret-access-key=$AWS_SECRET_ACCESS_KEY --namespace kube-system --dry-run -o yaml | kubectl apply -f -
+   - kubectl apply -f ./helm/tiller-rbac.yaml
+   - kubectl apply -f ./helm/external-dns/external-dns-rbac.yaml
+   - kubectl apply -f ./helm/kube-dns-autoscaler.yaml
+   - kubectl apply -f ./helm/storage-class.yaml
+   - helm init --service-account tiller --upgrade
+   - helm repo add incubator $HELM_INCUBATOR_REPO
+   - sleep 80
+   - helm upgrade --install nginx-ingress -f ./helm/nginx-ingress.yaml stable/nginx-ingress --namespace nginx-ingress
+   - helm upgrade --install nginx-ingress-internal -f ./helm/nginx-ingress-internal.yaml stable/nginx-ingress --namespace nginx-ingress
+   - helm upgrade --install external-dns-intranet -f ./helm/external-dns/external-dns-intranet.yaml stable/external-dns --namespace kube-system
+   - helm upgrade --install external-dns-internet -f ./helm/external-dns/external-dns-internet.yaml stable/external-dns --namespace kube-system
+   - helm upgrade --install external-dns-nginx -f ./helm/external-dns/external-dns-nginx.yaml stable/external-dns --namespace kube-system
+   - helm upgrade --install cert-manager -f ./helm/cert-manager/cert-manager.yaml stable/cert-manager --namespace kube-system
+   - kubectl apply -f ./helm/cert-manager/letsencrypt-staging.yaml
+   - helm upgrade --install kubernetes-dashboard -f ./helm/kubernetes-dashboard.yaml stable/kubernetes-dashboard --namespace kube-system
+   - helm upgrade --install metrics-server -f ./helm/metrics-server.yaml stable/metrics-server --namespace kube-system
+   - helm upgrade --install cluster-autoscaler -f ./helm/cluster-autoscaler.yaml stable/cluster-autoscaler --namespace kube-system
+   - helm upgrade --install elasticsearch -f ./helm/logging/elasticsearch.yaml incubator/elasticsearch --namespace logging
+   - helm upgrade --install curator -f ./helm/logging/curator.yaml incubator/elasticsearch-curator --namespace logging
+   - helm upgrade --install fluentd -f ./helm/logging/fluentd.yaml stable/fluentd-elasticsearch --namespace logging
+   - helm upgrade --install cerebro -f ./helm/logging/cerebro.yaml stable/cerebro --namespace logging
+   - helm upgrade --install kibana -f ./helm/logging/kibana.yaml stable/kibana --namespace logging
+   - helm upgrade --install prometheus -f ./helm/monitoring/prometheus.yaml stable/prometheus --namespace monitoring
+   - kubectl create configmap grafana-dashboards --from-file=./helm/monitoring/dashboards --namespace monitoring --dry-run -o yaml | kubectl apply -f -
+   - helm upgrade --install grafana -f ./helm/monitoring/grafana.yaml stable/grafana --namespace monitoring
+  artifacts:
+    name: "configuration-temp"
+    paths:
+      - kubeconfig_$CLUSTER_NAME
+    expire_in: 4 week
+
+uninstall:
+  stage: uninstall
+  image:
+    name: dtzar/helm-kubectl:2.10.0
+    entrypoint:  ["/bin/sh", "-c"]
+  dependencies:
+   - install
+  tags:
+   - blueharvest
+   - terraform
+  allow_failure: false
+  only:
+    - master
+  when:  manual
+  before_script:
+    - export KUBECONFIG=kubeconfig_$CLUSTER_NAME
+    - wget -O /usr/local/bin/aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
+    - chmod +x /usr/local/bin/aws-iam-authenticator
+    - aws-iam-authenticator help
+    - helm init --client-only
+  script:
+    - helm del --purge nginx-ingress
+    - helm del --purge nginx-ingress-internal
+    - helm del --purge external-dns-intranet
+    - helm del --purge external-dns-internet
+    - helm del --purge external-dns-nginx
+    - helm del --purge cert-manager
+    - helm del --purge kubernetes-dashboard
+    - helm del --purge metrics-server
+    - helm del --purge cluster-autoscaler
+    - helm del --purge curator
+    - helm del --purge fluentd
+    - helm del --purge cerebro
+    - kubectl delete sts -l app=elasticsearch --namespace logging
+    - kubectl delete sts -l app=grafana --namespace monitoring
+    - kubectl delete sts -l app=prometheus --namespace monitoring
+    - sleep 60
+    - kubectl delete pvc -l app=elasticsearch --namespace logging
+    - sleep 180
+
+destroy:
+  stage: undeploy
+  dependencies:
+   - uninstall
+  tags:
+   - blueharvest
+   - terraform
+  when: on_success
+  allow_failure: false
+  only:
+    - master
+  before_script:
+   - echo -n $CLUSTER_PRIVATE_KEY > ./ssh/blueharvest_terraform_bastion
+   - echo -n $CLUSTER_PUBLIC_KEY > ./ssh/blueharvest_terraform_bastion.pub
+   - export TF_VAR_cluster_name=$CLUSTER_NAME
+   - export TF_VAR_environment=$CLUSTER_ENV
+   - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
+   - export TF_VAR_asg_min_size=$CLUSTER_MIN_NODES
+   - export TF_VAR_asg_max_size=$CLUSTER_MAX_NODES
+   - echo "Variables -> cluster_name=$TF_VAR_cluster_name environment=$TF_VAR_environment instance_type=$CLUSTER_INSTANCE_TYPE asg_min_size=$CLUSTER_MIN_NODES asg_max_size=$CLUSTER_MAX_NODES"
+  script:
+   - terraform --version
+   - terraform init -force-copy=true -backend-config="key=blueharvest/terraform/eks/$TF_VAR_cluster_name"
+   - terraform destroy -force || true
