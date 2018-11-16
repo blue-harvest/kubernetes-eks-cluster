@@ -1,1 +1,1 @@
-Place here your key pair to run terraform locally.
+SSH keys will be generated here dynamically from the GitLab CI b64 encoded variables CLUSTER_PRIVATE_KEY and CLUSTER_PUBLIC_KEY. You must generate a key pair, and copy paste the keys as b64 strings.

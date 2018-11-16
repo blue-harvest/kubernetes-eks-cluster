@@ -25,8 +25,8 @@ plan:
    - blueharvest
    - terraform
   before_script:
-   - echo -n $CLUSTER_PRIVATE_KEY > ./ssh/blueharvest_terraform_bastion
-   - echo -n $CLUSTER_PUBLIC_KEY > ./ssh/blueharvest_terraform_bastion.pub
+   - echo -n $CLUSTER_PRIVATE_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion
+   - echo -n $CLUSTER_PUBLIC_KEY  | base64 -d >> ./ssh/blueharvest_terraform_bastion.pub
    - export TF_VAR_cluster_name=$CLUSTER_NAME
    - export TF_VAR_environment=$CLUSTER_ENV
    - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
@@ -43,13 +43,13 @@ apply:
   stage: deploy
   when: manual
   allow_failure: false
-  only:
-    - master
   dependencies:
    - plan
   tags:
    - blueharvest
    - terraform
+  only:
+    - master
   before_script:
    - curl -LO https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
    - chmod +x aws-iam-authenticator
@@ -57,8 +57,8 @@ apply:
    - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl 
    - chmod +x ./kubectl
    - mv ./kubectl /usr/local/bin/kubectl
-   - echo -n $CLUSTER_PRIVATE_KEY > ./ssh/blueharvest_terraform_bastion
-   - echo -n $CLUSTER_PUBLIC_KEY > ./ssh/blueharvest_terraform_bastion.pub
+   - echo -n $CLUSTER_PRIVATE_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion
+   - echo -n $CLUSTER_PUBLIC_KEY  | base64 -d >> ./ssh/blueharvest_terraform_bastion.pub
    - export TF_VAR_cluster_name=$CLUSTER_NAME
    - export TF_VAR_environment=$CLUSTER_ENV
    - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
@@ -196,8 +196,8 @@ destroy:
   only:
     - master
   before_script:
-   - echo -n $CLUSTER_PRIVATE_KEY > ./ssh/blueharvest_terraform_bastion
-   - echo -n $CLUSTER_PUBLIC_KEY > ./ssh/blueharvest_terraform_bastion.pub
+   - echo -n $CLUSTER_PRIVATE_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion
+   - echo -n $CLUSTER_PUBLIC_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion.pub
    - export TF_VAR_cluster_name=$CLUSTER_NAME
    - export TF_VAR_environment=$CLUSTER_ENV
    - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
