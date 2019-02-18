@@ -1,6 +1,6 @@
 image:
   name: registry.opensource.zalan.do/teapot/external-dns
-  tag: v0.5.4
+  tag: v0.5.7
 
 sources:
   - service
@@ -12,7 +12,7 @@ domainFilters:
 
 registry: "txt"
 txtPrefix: "txt."
-txtOwnerId: "nginx-external-dns"
+txtOwnerId: CLUSTER_NAME.nginx-external-dns
 
 ## options: sync, upsert-only
 policy: sync

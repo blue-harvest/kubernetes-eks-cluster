@@ -56,6 +56,7 @@ sudo sed -i "s/;tls-auth ta.key 0/tls-auth ta.key 0\nkey-direction 0/" /etc/open
 sudo sed -i "s/;cipher AES-128-CBC/cipher AES-128-CBC\nauth SHA256/" /etc/openvpn/server.conf
 sudo sed -i "s/;user nobody/user nobody/" /etc/openvpn/server.conf
 sudo sed -i "s/;group nogroup/group nogroup/" /etc/openvpn/server.conf
+sudo sed -i "s/;duplicate-cn/duplicate-cn/" /etc/openvpn/server.conf
 sudo sed -i "s/;push \"route 192.168.10.0 255.255.255.0\"/push \"route 10.0.0.0 255.255.0.0\"/" /etc/openvpn/server.conf
 
 ################################ Allow IP forwarding ################################

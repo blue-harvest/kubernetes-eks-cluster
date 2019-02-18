@@ -45,6 +45,7 @@ resources:
     memory: 128Mi
 
 adminUser: blueharvest
+adminPassword: grafana
 
 persistence:
   enabled: true
@@ -63,17 +64,35 @@ datasources:
      isDefault: true
 
 dashboardsConfigMaps:
-  default: "grafana-dashboards"
+  default-dashboards: "default-dashboards"
+  istio-dashboards: "istio-dashboards"
+  istio-system-dashboards: "istio-system-dashboards"
 
 dashboardProviders:
   dashboardproviders.yaml:
     apiVersion: 1
     providers:
-    - name: 'default'
+    - name: 'default-dashboards'
       orgId: 1
       folder: ''
       type: file
       disableDeletion: false
       editable: true
       options:
-        path: /var/lib/grafana/dashboards
+        path: /var/lib/grafana/dashboards/default-dashboards
+    - name: 'istio-dashboards'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /var/lib/grafana/dashboards/istio-dashboards
+    - name: 'istio-system-dashboards'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /var/lib/grafana/dashboards/istio-system-dashboards

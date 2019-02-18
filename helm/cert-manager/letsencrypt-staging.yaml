@@ -15,8 +15,8 @@ spec:
       providers:
       - name: route53
         route53:
-          hostedZoneID: "Z31OVNF5EA1VAW"
-          accessKeyID: "AKIAIEVWBEHS3EM2OFAA"
+          hostedZoneID: CLUSTER_ZONE_ID
+          accessKeyID: AWS_ACCESS_KEY_ID
           secretAccessKeySecretRef:
             name: route53-config
             key: secret-access-key
