@@ -26,6 +26,12 @@ serviceAccount:
 livenessProbe:
   enabled: true
 
+service:
+  type: ClusterIP
+  ports:
+   - name: "fluentd-tcp"
+     port: 24224
+
 annotations:
   scheduler.alpha.kubernetes.io/critical-pod: ''
   seccomp.security.alpha.kubernetes.io/pod: 'docker/default'

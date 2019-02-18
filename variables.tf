@@ -15,11 +15,11 @@ variable "cluster_name" {
 }
 
 variable "instance_type" {
-  default = "t2.xlarge"
+  default = "t2.large"
 }
 
 variable "asg_min_size" {
-  default = "6"
+  default = "5"
 }
 
 variable "asg_max_size" {
@@ -37,9 +37,20 @@ variable "map_users" {
       group    = "system:masters"
     },
     {
+      user_arn = "arn:aws:iam::121854299932:user/sherief-shahin"
+      username = "sherief-shahin"
+      group    = "system:masters"
+    },
+    {
       user_arn = "arn:aws:iam::121854299932:user/stefan.ghiata"
       username = "stefan.ghiata"
       group    = "system:masters"
     },
   ]
+}
+
+variable "map_users_count" {
+  description = "The count of roles in the map_users list."
+  type        = "string"
+  default     = 3
 }

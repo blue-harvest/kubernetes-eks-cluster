@@ -11,12 +11,13 @@ module "eks" {
                          "asg_min_size", var.asg_min_size,
                          "instance_type", var.instance_type,
                          "name", "workers",
-                         "autoscaling_enabled", "true",
-                         "protect_from_scale_in", "false",
+                         "autoscaling_enabled", true,
+                         "protect_from_scale_in", false,
                          "subnets", "${join(",", module.vpc.private_subnets)}",
                      )
-  )}",
+  )}"
 
   worker_group_count = "1"
-  map_users = "${var.map_users}"
+  map_users          = "${var.map_users}"
+  map_users_count    = "${var.map_users_count}"
 }
