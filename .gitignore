@@ -5,5 +5,13 @@ crash.log
 .idea
 *.iml
 *.exe
+*.ovpn
 debug.test
 .terraform/*
+linux-amd64/*
+temp/*
+.DS_Store 
+config-map-*
+kubeconfig_*
+*_key
+*_key.pub

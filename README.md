@@ -1,7 +1,6 @@
 # Blue Harvest EKS Cluster
 
-This repository contains terraform code and helm charts values to provision a fully operational Kubernetes cluster. Everything automated with a Gitlab pipeline, and parametrized so we can launch more than one cluster at the same time.
-
+This repository contains terraform code to provision a fully operational EKS Kubernetes cluster.
 ## User Guide
 
 This guide assumes you have the source code hosted on GitLab, and that you have the required secrets defined in
@@ -15,41 +14,7 @@ The required variables are:
 * CLUSTER_PUBLIC_KEY: B64 encoded SSH public key
 * CLUSTER_PRIVATE_KEY: B64 encoded SSH private key
 
-To create your own cluster you must go to the Gitlab GUI, in particular to the CI/CD section of this repostiroy, and click on the Run pipeline button:
-
-***
-![Run Pipeline](./assets/run_pipeline.png)
-***
-
-This will bring us to the pipeline creation screen, where we can intiate and parametrize a new instance of our pipeline.
-
-***
-![Run Pipeline](./assets/create_pipeline.png)
-***
-
-The following variables are mandatory:
-
-1. **CLUSTER_NAME**: This is going to be the name of the EKS cluster, but it also will be used to separate the terraform state of your cluster.
-
-2. **CLUSTER_DNS**:  This will be the base dns used for all the management add-ons that the pipeline will install. So if you set this variable to ``mycluster.blueharvest.io``, you will be able to reach for example the kubernetes dashboard at https://dashboard.mycluster.blueharvest.io
-
-The rest of the variables are optional, and they will take by default the values that are shown in the picture. Just keep in mind that a powerful instnce type is reomended.
-
-After submiting this form, your pipeline will be initiated, and the build stage will be exectued. The first stage contains a job running terraform plan, which only will show the list of AWS resources to be created.
-
-To move on and actually get the cluster creation process started, we need to click on apply, which is a manual job, as shown in the picture bellow.
-
-***
-![Pipeline](./assets/pipeline.png)
-***
-
-After the terraform apply job finishes, the install job will be triggered automatically. This job will take care of setting up the required HELM charts to make the cluster fully operational.
-
-Once the two jobs are finished, the pipeline will be paused, until you decide to put your cluster down, by clicking on the destroy job button:
-
-***
-![Pipeline Finished](./assets/pipeline_finished.png)
-***
+To create your own cluster you must go to the Gitlab GUI, in particular to the CI/CD section of this repostiroy, and click on the Run pipeline button.
 
 Once the cluster is created, you will need to download the kubeconfig and .ovpn configuration files by clicking on the followig button:
 

@@ -1,42 +1,24 @@
 image:
-  name: hashicorp/terraform:0.11.8
+  name: hashicorp/terraform:0.11.11
   entrypoint:  ["/bin/sh", "-c"]
-
-variables:
-  CLUSTER_NAME: poc1
-  CLUSTER_DNS: poc1.blueharvest.io
-  CLUSTER_ZONE_ID: Z31OVNF5EA1VAW
-  CLUSTER_DNS_ZONE: blueharvest.io
-  CLUSTER_ENV: dev
-  CLUSTER_INSTANCE_TYPE: t2.large
-  CLUSTER_MIN_NODES: 6
-  CLUSTER_MAX_NODES: 24
-  HELM_INCUBATOR_REPO: https://kubernetes-charts-incubator.storage.googleapis.com/
 
 stages:
   - build
   - deploy
-  - install
-  - uninstall
   - undeploy
+
+before_script:
+  - curl -LO https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator && mv aws-iam-authenticator /usr/bin/aws-iam-authenticator && chmod +x /usr/bin/aws-iam-authenticator
+  - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl && mv kubectl /usr/bin/kubectl && chmod +x /usr/bin/kubectl
+  - curl -L https://storage.googleapis.com/kubernetes-helm/helm-v2.12.3-linux-amd64.tar.gz | tar xvz && mv linux-amd64/helm /usr/bin/helm && chmod +x /usr/bin/helm
+  - terraform init -force-copy=true
 
 plan:
   stage: build
   tags:
    - blueharvest
    - terraform
-  before_script:
-   - echo -n $CLUSTER_PRIVATE_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion
-   - echo -n $CLUSTER_PUBLIC_KEY  | base64 -d >> ./ssh/blueharvest_terraform_bastion.pub
-   - export TF_VAR_cluster_name=$CLUSTER_NAME
-   - export TF_VAR_environment=$CLUSTER_ENV
-   - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
-   - export TF_VAR_asg_min_size=$CLUSTER_MIN_NODES
-   - export TF_VAR_asg_max_size=$CLUSTER_MAX_NODES
-   - echo "Variables -> cluster_name=$TF_VAR_cluster_name environment=$TF_VAR_environment instance_type=$CLUSTER_INSTANCE_TYPE asg_min_size=$CLUSTER_MIN_NODES asg_max_size=$CLUSTER_MAX_NODES"
   script:
-   - terraform --version
-   - terraform init -force-copy=true -backend-config="key=blueharvest/terraform/eks/$TF_VAR_cluster_name"
    - terraform validate
    - terraform plan
 
@@ -49,95 +31,26 @@ apply:
   tags:
    - blueharvest
    - terraform
-  before_script:
-   - curl -LO https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
-   - chmod +x aws-iam-authenticator
-   - mv ./aws-iam-authenticator /usr/local/bin/aws-iam-authenticator
-   - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl 
-   - chmod +x ./kubectl
-   - mv ./kubectl /usr/local/bin/kubectl
-   - echo -n $CLUSTER_PRIVATE_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion
-   - echo -n $CLUSTER_PUBLIC_KEY  | base64 -d >> ./ssh/blueharvest_terraform_bastion.pub
-   - cat ./ssh/blueharvest_terraform_bastion
-   - cat ./ssh/blueharvest_terraform_bastion.pub
-   - export TF_VAR_cluster_name=$CLUSTER_NAME
-   - export TF_VAR_environment=$CLUSTER_ENV
-   - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
-   - export TF_VAR_asg_min_size=$CLUSTER_MIN_NODES
-   - export TF_VAR_asg_max_size=$CLUSTER_MAX_NODES
-   - echo "Variables -> cluster_name=$TF_VAR_cluster_name environment=$TF_VAR_environment instance_type=$CLUSTER_INSTANCE_TYPE asg_min_size=$CLUSTER_MIN_NODES asg_max_size=$CLUSTER_MAX_NODES"
   script:
-   - terraform --version
-   - terraform init -force-copy=true -backend-config="key=blueharvest/terraform/eks/$TF_VAR_cluster_name"
-   - terraform validate
-   - terraform plan
    - terraform apply -input=false -auto-approve=true
    - terraform plan
   artifacts:
     name: "configuration"
     paths:
-      - kubeconfig_$CLUSTER_NAME
+      - kubeconfig_*
+      - config-map-aws-auth_*.yaml
       - ./*.ovpn
-    expire_in: 4 week
+      - ./*_key
+      - ./*_key.pub
 
-install:
-  stage: install
-  retry: 2
-  image:
-    name: dtzar/helm-kubectl:2.10.0
-    entrypoint:  ["/bin/sh", "-c"]
+destroy:
+  stage: undeploy
   dependencies:
    - apply
   tags:
    - blueharvest
    - terraform
-  when: on_success
+  when: manual
   allow_failure: false
   script:
-   - chmod +x scripts/install.sh
-   - scripts/install.sh
-
-  artifacts:
-    name: "configuration-temp"
-    paths:
-      - kubeconfig_$CLUSTER_NAME
-    expire_in: 4 week
-
-uninstall:
-  stage: uninstall
-  image:
-    name: dtzar/helm-kubectl:2.10.0
-    entrypoint:  ["/bin/sh", "-c"]
-  dependencies:
-   - install
-  tags:
-   - blueharvest
-   - terraform
-  allow_failure: false
-  when:  manual
-  script:
-   - chmod +x scripts/uninstall.sh
-   - scripts/uninstall.sh
-
-destroy:
-  stage: undeploy
-  dependencies:
-   - uninstall
-  tags:
-   - blueharvest
-   - terraform
-  when: on_success
-  allow_failure: false
-  before_script:
-   - echo -n $CLUSTER_PRIVATE_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion
-   - echo -n $CLUSTER_PUBLIC_KEY | base64 -d >> ./ssh/blueharvest_terraform_bastion.pub
-   - export TF_VAR_cluster_name=$CLUSTER_NAME
-   - export TF_VAR_environment=$CLUSTER_ENV
-   - export TF_VAR_instance_type=$CLUSTER_INSTANCE_TYPE
-   - export TF_VAR_asg_min_size=$CLUSTER_MIN_NODES
-   - export TF_VAR_asg_max_size=$CLUSTER_MAX_NODES
-   - echo "Variables -> cluster_name=$TF_VAR_cluster_name environment=$TF_VAR_environment instance_type=$CLUSTER_INSTANCE_TYPE asg_min_size=$CLUSTER_MIN_NODES asg_max_size=$CLUSTER_MAX_NODES"
-  script:
-   - terraform --version
-   - terraform init -force-copy=true -backend-config="key=blueharvest/terraform/eks/$TF_VAR_cluster_name"
    - terraform destroy -force
