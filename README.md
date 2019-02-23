@@ -11,8 +11,6 @@ The required variables are:
 * AWS_ACCESS_KEY_ID: Same variable used with AWS CLI
 * AWS_SECRET_ACCESS_KEY: Same variable used with AWS CLI
 * AWS_DEFAULT_REGION: Same variable used  with AWS CLI
-* CLUSTER_PUBLIC_KEY: B64 encoded SSH public key
-* CLUSTER_PRIVATE_KEY: B64 encoded SSH private key
 
 To create your own cluster you must go to the Gitlab GUI, in particular to the CI/CD section of this repostiroy, and click on the Run pipeline button.
 
